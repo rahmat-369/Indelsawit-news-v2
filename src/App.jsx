@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Menu, X, Filter, User, ExternalLink, Github, Send, Instagram, CheckCircle2 } from "lucide-react";
+import { Menu, X, Filter, User, ExternalLink, Github, Send, Instagram, CheckCircle2, ChevronUp } from "lucide-react";
 
 // --- CUSTOM SVG ICONS UNTUK TIKTOK & WHATSAPP ASLI ---
 const TikTokIcon = ({ size = 20, className = "" }) => (
@@ -23,8 +23,30 @@ export default function App() {
   const [cooldownRemaining, setCooldownRemaining] = useState({});
   const [activeFilter, setActiveFilter] = useState("Semua");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showTopBtn, setShowTopBtn] = useState(false); // State untuk tombol Back to Top
   
   const intervalRef = useRef(null);
+
+  // Fungsi mendeteksi scroll untuk memunculkan tombol "Kembali ke Atas"
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 400) {
+        setShowTopBtn(true);
+      } else {
+        setShowTopBtn(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Fungsi kembali ke atas
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
 
   const startCooldownTimer = (title, initialTime) => {
     setCooldownRemaining(prev => ({ ...prev, [title]: initialTime }));
@@ -125,11 +147,11 @@ export default function App() {
   return (
     <div className="min-h-screen font-sans text-white bg-[#050705]">
       
-      {/* HEADER STICKY CONTAINER - Menu Gak Bakal Tenggelam */}
+      {/* HEADER STICKY CONTAINER */}
       <header className="sticky top-4 z-50 mx-4 md:mx-8 mb-8">
         <nav className="p-5 rounded-[28px] flex justify-between items-center bg-white/[0.03] backdrop-blur-xl border border-white/5 shadow-2xl relative">
           
-          {/* LOGO SUPER CLEAN - Fokus "Sawi" dan Pohon */}
+          {/* LOGO DIKEMBALIKAN KE FORMAT ASLI + .NEWS */}
           <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter flex items-center gap-1">
             <span className="text-white">Indo</span>
             {/* Glow Hijau Sawi */}
@@ -138,20 +160,21 @@ export default function App() {
               <div className="absolute inset-0 bg-orange-500/30 blur-[6px] rounded-full animate-pulse"></div>
               <img src="https://j.top4top.io/p_37192jn0n0.png" alt="logo" className="relative z-10 w-full h-full object-contain" />
             </div>
-            {/* Bagian ".news" Dihapus Total */}
+            {/* .news Dikembalikan dengan Glow Biru Silver */}
+            <span className="text-gray-300 drop-shadow-[0_0_12px_rgba(59,130,246,0.5)]">.news</span>
           </h1>
 
           <div className="flex items-center gap-3">
             <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full text-[10px] font-bold text-green-400 uppercase tracking-widest">
                <CheckCircle2 size={14}/> Server Optimal
             </div>
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 bg-white/5 rounded-xl border border-white/10 text-blue-400 hover:bg-white/10">
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 bg-white/5 rounded-xl border border-white/10 text-blue-400 hover:bg-white/10 transition-colors">
               {isMenuOpen ? <X size={24}/> : <Menu size={24}/>}
             </button>
           </div>
         </nav>
 
-        {/* Hamburger Menu (Absolute & Sticky) */}
+        {/* Hamburger Menu Mobile */}
         {isMenuOpen && (
           <div className="absolute top-[110%] left-0 w-full glass-card rounded-3xl p-6 animate-in slide-in-from-top duration-300 border border-white/5 bg-white/[0.02] backdrop-blur-xl shadow-2xl">
             <div className="flex justify-between items-center mb-4">
@@ -235,7 +258,6 @@ export default function App() {
             <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Dev" className="relative w-24 h-24 rounded-full border-2 border-white/10 object-cover shadow-2xl" />
           </div>
           
-          {/* NAMA DEV DIUBAH */}
           <h2 className="text-2xl font-black tracking-tighter text-white">R_hmt ofc</h2>
           <p className="text-blue-400 font-mono text-[11px] font-bold uppercase tracking-[0.3em] mb-4">Developer & AI Prompting Engine</p>
           
@@ -244,22 +266,20 @@ export default function App() {
           </p>
 
           <div className="flex flex-wrap justify-center gap-4 mb-10">
-            <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-white text-gray-400 border border-white/5 hover:border-white/20"><Github size={20}/></a>
-            <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-blue-400 text-gray-400 border border-white/5 hover:border-blue-400/20"><Send size={20}/></a>
-            <a href="https://www.instagram.com/rahmt_nhw?igsh=MWQwcnB3bTA2ZnVidg==" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-pink-500 text-gray-400 border border-white/5 hover:border-pink-500/20"><Instagram size={20}/></a>
-            <a href="https://www.tiktok.com/@r_hmtofc?_r=1&_t=ZS-94KRfWQjeUu" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-white text-gray-400 border border-white/5 hover:border-white/20">
-              {/* IKON TIKTOK ASLI */}
+            <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-white text-gray-400 border border-white/5 hover:border-white/20 transition-colors"><Github size={20}/></a>
+            <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-blue-400 text-gray-400 border border-white/5 hover:border-blue-400/20 transition-colors"><Send size={20}/></a>
+            <a href="https://www.instagram.com/rahmt_nhw?igsh=MWQwcnB3bTA2ZnVidg==" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-pink-500 text-gray-400 border border-white/5 hover:border-pink-500/20 transition-colors"><Instagram size={20}/></a>
+            <a href="https://www.tiktok.com/@r_hmtofc?_r=1&_t=ZS-94KRfWQjeUu" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-white text-gray-400 border border-white/5 hover:border-white/20 transition-colors">
               <TikTokIcon size={20} />
             </a>
           </div>
 
           <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-[#25D366]/10 px-8 py-4 rounded-full text-xs font-bold text-[#25D366] border border-[#25D366]/20 hover:bg-[#25D366]/20 transition-all mb-12 shadow-lg shadow-[#25D366]/5">
-            {/* IKON WHATSAPP ASLI */}
             <WhatsAppIcon size={18} /> JOIN WHATSAPP CHANNEL
           </a>
 
           <div className="pt-8 border-t border-white/5 w-full flex flex-col md:flex-row justify-between items-center gap-4 opacity-40">
-            <p className="text-[10px] font-mono">© 2026 INDOSAWIT - KARYA DILINDUNGI</p>
+            <p className="text-[10px] font-mono">© 2026 INDOSAWIT.NEWS - KARYA DILINDUNGI</p>
             <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest">
               <span>Privacy</span>
               <span>Terms</span>
@@ -269,6 +289,16 @@ export default function App() {
         </div>
       </footer>
 
+      {/* TOMBOL KEMBALI KE ATAS (MUNCUL SAAT DI-SCROLL) */}
+      {showTopBtn && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-6 z-50 p-3 bg-blue-600/20 backdrop-blur-xl border border-blue-500/50 rounded-full text-blue-400 hover:bg-blue-600/40 hover:text-white transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-in fade-in zoom-in duration-300"
+        >
+          <ChevronUp size={24} />
+        </button>
+      )}
+
     </div>
   );
-    }
+            } 
