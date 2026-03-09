@@ -3,19 +3,37 @@
 @tailwind utilities;
 
 :root {
-  --background: #050705;
+  --background: #050705; /* Deep Obsidian Black */
   --foreground: #ffffff;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  /* Ubah pendaran background dari Hijau ke Deep Orange/Amber biar senada dengan logo sawit */
   background-image: 
-    radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 100% 100%, rgba(34, 197, 94, 0.05) 0%, transparent 50%);
+    radial-gradient(circle at 0% 0%, rgba(234, 88, 12, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(234, 88, 12, 0.05) 0%, transparent 50%);
   background-attachment: fixed;
 }
 
+/* Glassmorphism standar untuk kartu dan navbar */
 .glass-card {
-  @apply bg-white/[0.02] backdrop-blur-2xl border border-white/[0.05] shadow-2xl;
+  @apply bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] shadow-2xl;
 }
+
+/* Biar scrollbar lu estetik dan nggak kaku (Opsional tapi bikin mewah) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(234, 88, 12, 0.2);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(234, 88, 12, 0.5);
+                   }
