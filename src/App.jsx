@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Menu, X, Filter, User, ExternalLink, Github, Send, Instagram, PlayCircle, MessageCircle } from "lucide-react";
+import { Menu, X, Filter, User, ExternalLink, Github, Send, Instagram, PlayCircle, MessageCircle, CheckCircle2 } from "lucide-react";
 
 export default function App() {
   const [news, setNews] = useState([]);
@@ -11,7 +11,6 @@ export default function App() {
   const [activeFilter, setActiveFilter] = useState("Semua");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // Ref buat interval auto-update 5 menit
   const intervalRef = useRef(null);
 
   const fetchNews = async () => {
@@ -42,8 +41,6 @@ export default function App() {
       const mergedNews = allResults.flat().sort(() => Math.random() - 0.5);
       
       setNews(mergedNews);
-      
-      // Pertahankan filter saat auto-update jalan
       setActiveFilter((currentFilter) => {
         if (currentFilter === "Semua") {
           setFilteredNews(mergedNews);
@@ -60,13 +57,32 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchNews(); // Tarik berita saat web pertama kali dibuka
+    fetchNews();
     
-    // Auto-refresh setiap 5 menit (300.000 ms)
-    intervalRef.current = setInterval(() => {
-      fetchNews();
-    }, 300000);
+    // --- SISTEM LOCALSTORAGE ANTI-REFRESH ---
+    const savedCooldowns = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
+    const now = Date.now();
+    const activeCooldowns = {};
+    
+    Object.keys(savedCooldowns).forEach(index => {
+      const timeLeft = Math.ceil((savedCooldowns[index] - now) / 1000);
+      if (timeLeft > 0) {
+        activeCooldowns[index] = timeLeft;
+        const timer = setInterval(() => {
+          setCooldownRemaining(prev => {
+            if (prev[index] <= 1) {
+              clearInterval(timer);
+              return { ...prev, [index]: 0 };
+            }
+            return { ...prev, [index]: prev[index] - 1 };
+          });
+        }, 1000);
+      }
+    });
+    setCooldownRemaining(activeCooldowns);
 
+    // Auto update 5 Menit
+    intervalRef.current = setInterval(fetchNews, 300000);
     return () => clearInterval(intervalRef.current);
   }, []);
 
@@ -79,35 +95,35 @@ export default function App() {
     }
   };
 
-  const startCooldown = (index) => {
-    setCooldownRemaining(prev => ({ ...prev, [index]: 20 }));
-    const timer = setInterval(() => {
-      setCooldownRemaining(prev => {
-        const current = prev[index];
-        if (current <= 1) {
-          clearInterval(timer);
-          return { ...prev, [index]: 0 };
-        }
-        return { ...prev, [index]: current - 1 };
-      });
-    }, 1000);
-  };
-
   const handleAiSummary = async (title, index) => {
     if (summary[index] || loadingAi[index] || cooldownRemaining[index] > 0) return;
     
     setLoadingAi(prev => ({ ...prev, [index]: true }));
     try {
-      // Prompt AI 1 paragraf padat (3-4 kalimat)
-      const prompt = `Analisis dan ringkas berita ini secara mendalam dalam satu paragraf utuh (sekitar 3-4 kalimat) yang padat, jelas, dan informatif: ${title}`;
+      const prompt = `Analisis mendalam 1 paragraf utuh (sekitar 3-4 kalimat) yang padat, jelas, dan informatif: ${title}`;
       const res = await fetch(`https://api.nexray.web.id/ai/gpt-3.5-turbo?text=${encodeURIComponent(prompt)}`);
       const data = await res.json();
       setSummary(prev => ({ ...prev, [index]: data.result }));
       
-      // Mulai cooldown 20 detik
-      startCooldown(index);
+      // Simpan Cooldown 20 Detik ke LocalStorage
+      const expiry = Date.now() + 20000;
+      const currentSaved = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
+      currentSaved[index] = expiry;
+      localStorage.setItem('indosawit_cooldowns', JSON.stringify(currentSaved));
+
+      setCooldownRemaining(prev => ({ ...prev, [index]: 20 }));
+      const timer = setInterval(() => {
+        setCooldownRemaining(prev => {
+          if (prev[index] <= 1) {
+            clearInterval(timer);
+            return { ...prev, [index]: 0 };
+          }
+          return { ...prev, [index]: prev[index] - 1 };
+        });
+      }, 1000);
+
     } catch (err) {
-      setSummary(prev => ({ ...prev, [index]: "Gagal memproses analisis. Server sedang sibuk." }));
+      setSummary(prev => ({ ...prev, [index]: "Gagal memproses analisis AI." }));
     } finally {
       setLoadingAi(prev => ({ ...prev, [index]: false }));
     }
@@ -119,22 +135,18 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 font-sans transition-colors duration-500 text-white">
+    <div className="min-h-screen p-4 md:p-8 font-sans transition-colors duration-500 text-white bg-[#050705]">
       
       {/* Header Glassmorphism */}
       <nav className="sticky top-4 z-50 p-5 rounded-[28px] flex justify-between items-center mb-8 bg-white/[0.03] backdrop-blur-xl border border-white/5 shadow-2xl">
         <div className="flex flex-col">
           <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter flex items-center gap-1">
             <span className="text-white">Indo</span>
-            <span className="text-[#ea580c]">Sawi</span>
+            {/* Teks Hijau, Glow Sawit Oranye */}
+            <span className="text-green-500">Sawi</span>
             <div className="relative inline-flex items-center justify-center w-8 h-8 -ml-1 -mt-1">
-              {/* Glow Brondolan Sawit (Deep Orange/Amber) */}
-              <div className="absolute inset-0 bg-[#ea580c] opacity-40 blur-[10px] rounded-full"></div>
-              <img 
-                src="https://j.top4top.io/p_37192jn0n0.png" 
-                alt="logo" 
-                className="relative z-10 w-full h-full object-contain drop-shadow-[0_0_8px_rgba(234,88,12,0.5)]" 
-              />
+              <div className="absolute inset-0 bg-orange-500 opacity-50 blur-[10px] rounded-full animate-pulse"></div>
+              <img src="https://j.top4top.io/p_37192jn0n0.png" alt="logo" className="relative z-10 w-full h-full object-contain drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
             </div>
             <span className="text-gray-500">.news</span>
           </h1>
@@ -147,25 +159,44 @@ export default function App() {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full text-[10px] font-bold text-green-400 uppercase tracking-widest">
+             <CheckCircle2 size={14}/> Server Optimal
+          </div>
           <button onClick={scrollToDevInfo} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest transition border border-white/5">
             <User size={14}/> Info Dev
           </button>
         </div>
       </nav>
 
-      {/* Mobile Menu Slidedown */}
+      {/* Mobile Menu Premium (Fungsional) */}
       {isMenuOpen && (
         <div className="md:hidden glass-card rounded-3xl p-6 mb-6 animate-in slide-in-from-top duration-300 border border-white/5 bg-white/[0.02] backdrop-blur-xl">
-          <h3 className="text-[10px] text-[#ea580c] font-bold uppercase tracking-widest mb-4">Navigasi Cepat</h3>
+          <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
+            <h3 className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Menu Navigasi</h3>
+            <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full"><CheckCircle2 size={10}/> Optimal</span>
+          </div>
+          
           <div className="grid grid-cols-1 gap-3">
              <button onClick={scrollToDevInfo} className="flex items-center justify-center gap-2 p-3 bg-white/5 rounded-2xl text-[11px] font-bold border border-white/5 hover:bg-white/10">
-               <User size={14}/> Lihat Profil Developer
+               <User size={14}/> Profil @R_hmt ofc
              </button>
+             
+             {/* Mini Social Hub */}
+             <div className="grid grid-cols-4 gap-2 mt-2">
+                <a href="https://github.com/rahmat-369" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><Github size={16}/></a>
+                <a href="https://t.me/rAi_engine" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-[#3b82f6]"><Send size={16}/></a>
+                <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-[#ec4899]"><Instagram size={16}/></a>
+                <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><PlayCircle size={16}/></a>
+             </div>
+
+             <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-2 bg-[#25D366]/10 px-4 py-3 rounded-2xl text-[10px] font-bold text-[#25D366] border border-[#25D366]/20">
+               <MessageCircle size={16} /> Join WhatsApp Channel
+             </a>
           </div>
         </div>
       )}
 
-      {/* Filter Bar */}
+      {/* Filter Bar - Tema Biru Profesional */}
       <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-4 items-center">
         <Filter size={16} className="text-gray-500 shrink-0 ml-2"/>
         {["Semua", "CNBC", "CNN", "Kompas", "Sindo", "Suara"].map((source) => (
@@ -174,7 +205,7 @@ export default function App() {
             onClick={() => handleFilter(source)}
             className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shrink-0 border ${
               activeFilter === source 
-              ? "bg-[#ea580c] border-[#ea580c] text-white shadow-[0_0_15px_rgba(234,88,12,0.3)]" 
+              ? "bg-blue-600 border-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
               : "bg-white/5 border-white/5 text-gray-400 hover:text-white"
             }`}
           >
@@ -185,7 +216,7 @@ export default function App() {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
         
-        {/* Berita Grid */}
+        {/* Berita Grid - Aksen Biru */}
         <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
           {loading ? (
             Array(6).fill(0).map((_, i) => (
@@ -193,25 +224,25 @@ export default function App() {
             ))
           ) : filteredNews.length > 0 ? (
             filteredNews.map((item, i) => (
-              <div key={i} className="bg-white/[0.02] backdrop-blur-xl rounded-[32px] overflow-hidden group hover:border-[#ea580c]/30 transition-all duration-500 flex flex-col border border-white/5 shadow-xl">
+              <div key={i} className="bg-white/[0.02] backdrop-blur-xl rounded-[32px] overflow-hidden group hover:border-blue-500/30 transition-all duration-500 flex flex-col border border-white/5 shadow-xl">
                 <div className="relative h-48 overflow-hidden">
                   <img src={item.image} alt="Thumbnail" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050705] to-transparent"></div>
-                  <span className="absolute top-4 left-4 text-[9px] bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-[#ea580c] font-bold uppercase tracking-[0.2em] border border-[#ea580c]/20 shadow-lg">
+                  <span className="absolute top-4 left-4 text-[9px] bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-blue-400 font-bold uppercase tracking-[0.2em] border border-blue-500/20 shadow-lg">
                     {item.source}
                   </span>
                 </div>
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-sm font-bold leading-tight group-hover:text-[#ea580c] transition-colors duration-300">{item.title}</h3>
+                    <h3 className="text-sm font-bold leading-tight group-hover:text-blue-400 transition-colors duration-300">{item.title}</h3>
                     <p className="text-[10px] text-gray-500 mt-3 font-mono opacity-60">{item.time}</p>
                   </div>
                   
-                  {/* AI Summary Section with 20s Cooldown */}
+                  {/* AI Summary Section with Cooldown */}
                   <div className="mt-5 pt-5 border-t border-white/5">
                     {!summary[i] ? (
                       <div className="flex justify-between items-center">
-                        <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-[#ea580c] font-bold flex items-center gap-1 transition-all">
+                        <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-blue-400 font-bold flex items-center gap-1 transition-all">
                           BACA FULL <ExternalLink size={10}/>
                         </a>
                         <button 
@@ -220,15 +251,15 @@ export default function App() {
                           className={`text-[10px] px-4 py-2 rounded-full border transition-all flex items-center gap-2 font-bold ${
                             cooldownRemaining[i] > 0
                             ? "bg-white/5 border-white/10 text-gray-500 cursor-not-allowed" 
-                            : "bg-[#ea580c]/10 text-[#ea580c] border-[#ea580c]/20 hover:bg-[#ea580c]/20 active:scale-95"
+                            : "bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20 active:scale-95"
                           }`}
                         >
                           {loadingAi[i] ? "Menganalisa..." : cooldownRemaining[i] > 0 ? `⏳ Wait ${cooldownRemaining[i]}s` : "✨ Ringkas AI"}
                         </button>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-gray-300 leading-relaxed bg-[#ea580c]/[0.03] p-4 rounded-2xl border border-[#ea580c]/10 shadow-inner animate-in fade-in duration-500">
-                        <span className="font-bold text-[#ea580c]">Deep Analysis: </span>{summary[i]}
+                      <div className="text-[11px] text-gray-300 leading-relaxed bg-blue-500/[0.03] p-4 rounded-2xl border border-blue-500/10 shadow-inner animate-in fade-in duration-500">
+                        <span className="font-bold text-blue-400">Deep Analysis: </span>{summary[i]}
                       </div>
                     )}
                   </div>
@@ -242,39 +273,27 @@ export default function App() {
           )}
         </div>
 
-        {/* Sidebar Developer */}
+        {/* Sidebar Developer Desktop */}
         <aside className="lg:col-span-1">
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl">
+          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl hidden lg:block">
             <div className="relative w-28 h-28 mx-auto mb-6">
               <div className="absolute inset-0 bg-white/10 rounded-full blur-xl animate-pulse"></div>
               <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="relative w-28 h-28 rounded-full border-2 border-white/10 object-cover shadow-2xl" />
             </div>
             
-            {/* Identity Update */}
             <h2 className="text-xl font-black tracking-tight text-center text-white">Rahmat</h2>
-            <p className="text-[11px] text-[#ea580c] font-mono mt-1 text-center font-bold">@R_hmt ofc</p>
+            <p className="text-[11px] text-blue-400 font-mono mt-1 text-center font-bold">@R_hmt ofc</p>
             
-            {/* Sosmed Hub (Iconic) */}
+            {/* Sosmed Hub */}
             <div className="flex flex-col gap-3 mt-6">
               <div className="flex flex-wrap gap-2 justify-center">
-                <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5">
-                  <Github size={14}/> GitHub
-                </a>
-                <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#3b82f6] transition text-gray-400 border border-white/5">
-                  <Send size={14}/> Telegram
-                </a>
-                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#ec4899] transition text-gray-400 border border-white/5">
-                  <Instagram size={14}/> Instagram
-                </a>
-                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5">
-                  <PlayCircle size={14}/> TikTok
-                </a>
+                <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5"><Github size={14}/></a>
+                <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#3b82f6] transition text-gray-400 border border-white/5"><Send size={14}/></a>
+                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#ec4899] transition text-gray-400 border border-white/5"><Instagram size={14}/></a>
+                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5"><PlayCircle size={14}/></a>
               </div>
-              
-              {/* Pesan Khusus WhatsApp */}
               <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-2 bg-[#25D366]/10 px-4 py-3 rounded-xl text-[10px] font-bold hover:bg-[#25D366]/20 text-[#25D366] transition border border-[#25D366]/20 text-center leading-relaxed">
-                <MessageCircle size={16} />
-                Join saluran WhatsApp utk info tools lainnya
+                <MessageCircle size={16} /> Join WhatsApp Channel
               </a>
             </div>
 
@@ -282,15 +301,9 @@ export default function App() {
             <div className="mt-8 pt-6 border-t border-white/5 text-left">
               <h3 className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-4 text-center">Sirkuit Proyek</h3>
               <ul className="text-[11px] text-gray-300 space-y-3 px-2">
-                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] shadow-[0_0_5px_#ea580c]"></span> Flora Scan AI
-                </li>
-                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] shadow-[0_0_5px_#ea580c]"></span> WatchNime
-                </li>
-                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] shadow-[0_0_5px_#ea580c]"></span> Ramadhan Lantern
-                </li>
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> Flora Scan AI</li>
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> WatchNime</li>
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> Ramadhan Lantern</li>
               </ul>
             </div>
           </div>
@@ -299,4 +312,4 @@ export default function App() {
       </div>
     </div>
   );
-  } 
+      } 
