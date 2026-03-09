@@ -13,7 +13,6 @@ export default function App() {
   
   const intervalRef = useRef(null);
 
-  // Fungsi untuk menjalankan timer cooldown
   const startCooldownTimer = (title, initialTime) => {
     setCooldownRemaining(prev => ({ ...prev, [title]: initialTime }));
     const timer = setInterval(() => {
@@ -53,7 +52,6 @@ export default function App() {
       });
 
       const allResults = await Promise.all(fetchPromises);
-      // Diacak biar fresh
       const mergedNews = allResults.flat().sort(() => Math.random() - 0.5);
       
       setNews(mergedNews);
@@ -75,11 +73,10 @@ export default function App() {
   useEffect(() => {
     fetchNews();
     
-    // --- SISTEM LOCALSTORAGE ANTI-REFRESH (Pake Judul Berita) ---
+    // --- SISTEM LOCALSTORAGE ANTI-REFRESH ---
     const savedCooldowns = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
     const savedSummaries = JSON.parse(localStorage.getItem('indosawit_summaries') || '{}');
     
-    // Pulihkan ringkasan yang udah pernah diklik
     setSummary(savedSummaries);
 
     const now = Date.now();
@@ -90,7 +87,6 @@ export default function App() {
       }
     });
 
-    // Auto update 5 Menit
     intervalRef.current = setInterval(fetchNews, 300000);
     return () => clearInterval(intervalRef.current);
   }, []);
@@ -105,7 +101,6 @@ export default function App() {
   };
 
   const handleAiSummary = async (title) => {
-    // Cek berdasarkan judul berita, bukan index
     if (summary[title] || loadingAi[title] || cooldownRemaining[title] > 0) return;
     
     setLoadingAi(prev => ({ ...prev, [title]: true }));
@@ -114,14 +109,12 @@ export default function App() {
       const res = await fetch(`https://api.nexray.web.id/ai/gpt-3.5-turbo?text=${encodeURIComponent(prompt)}`);
       const data = await res.json();
       
-      // Simpan hasil ke state & LocalStorage biar gak ilang pas refresh
       setSummary(prev => {
         const newSummary = { ...prev, [title]: data.result };
         localStorage.setItem('indosawit_summaries', JSON.stringify(newSummary));
         return newSummary;
       });
       
-      // Simpan Cooldown 20 Detik ke LocalStorage
       const expiry = Date.now() + 20000;
       const currentSaved = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
       currentSaved[title] = expiry;
@@ -151,6 +144,7 @@ export default function App() {
             <span className="text-white">Indo</span>
             <span className="text-green-500">Sawi</span>
             <div className="relative inline-flex items-center justify-center w-8 h-8 -ml-1 -mt-1">
+              {/* Glow Oranye Brondolan */}
               <div className="absolute inset-0 bg-orange-500 opacity-50 blur-[10px] rounded-full animate-pulse"></div>
               <img src="https://j.top4top.io/p_37192jn0n0.png" alt="logo" className="relative z-10 w-full h-full object-contain drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
             </div>
@@ -189,7 +183,7 @@ export default function App() {
           <div className="grid grid-cols-1 gap-3">
              <div className="grid grid-cols-4 gap-2">
                 <a href="https://github.com/rahmat-369" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><Github size={16}/></a>
-                <a href="https://t.me/rAi_engine" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-[#3b82f6]"><Send size={16}/></a>
+                <a href="https://t.me/rAi_engine" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-blue-400"><Send size={16}/></a>
                 <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-[#ec4899]"><Instagram size={16}/></a>
                 <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><PlayCircle size={16}/></a>
              </div>
@@ -200,7 +194,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Filter Bar */}
+      {/* Filter Bar - Modern Hollow Style */}
       <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-4 items-center">
         <Filter size={16} className="text-gray-500 shrink-0 ml-2"/>
         {["Semua", "CNBC", "CNN", "Kompas", "Sindo", "Suara"].map((source) => (
@@ -209,7 +203,7 @@ export default function App() {
             onClick={() => handleFilter(source)}
             className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shrink-0 border ${
               activeFilter === source 
-              ? "bg-blue-600 border-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+              ? "bg-blue-500/10 border-blue-400 text-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.2)]" 
               : "bg-white/5 border-white/5 text-gray-400 hover:text-white"
             }`}
           >
@@ -229,38 +223,44 @@ export default function App() {
               <div key={i} className="bg-white/[0.02] backdrop-blur-xl rounded-[32px] overflow-hidden group hover:border-blue-500/30 transition-all duration-500 flex flex-col border border-white/5 shadow-xl">
                 <div className="relative h-48 overflow-hidden">
                   <img src={item.image} alt="Thumbnail" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#050705] to-transparent"></div>
-                  <span className="absolute top-4 left-4 text-[9px] bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-blue-400 font-bold uppercase tracking-[0.2em] border border-blue-500/20 shadow-lg">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050705] via-[#050705]/80 to-transparent"></div>
+                  {/* Badge Sumber Berita (Lebih Elegan) */}
+                  <span className="absolute top-4 left-4 text-[9px] bg-blue-500/20 backdrop-blur-md px-3 py-1 rounded-full text-blue-300 font-bold uppercase tracking-[0.2em] border border-blue-500/30 shadow-lg">
                     {item.source}
                   </span>
                 </div>
-                <div className="p-6 flex-1 flex flex-col justify-between">
+                
+                <div className="p-6 flex-1 flex flex-col justify-between -mt-12 relative z-10">
                   <div>
-                    <h3 className="text-sm font-bold leading-tight group-hover:text-blue-400 transition-colors duration-300">{item.title}</h3>
+                    {/* Judul Berita - Default Putih, Hover Biru */}
+                    <h3 className="text-sm font-bold leading-relaxed text-gray-100 group-hover:text-blue-400 transition-colors duration-300">{item.title}</h3>
                     <p className="text-[10px] text-gray-500 mt-3 font-mono opacity-60">{item.time}</p>
                   </div>
                   
                   <div className="mt-5 pt-5 border-t border-white/5">
                     {!summary[item.title] ? (
                       <div className="flex justify-between items-center">
-                        <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-blue-400 font-bold flex items-center gap-1 transition-all">
+                        <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition-all">
                           BACA FULL <ExternalLink size={10}/>
                         </a>
+                        {/* Tombol AI Neon Style */}
                         <button 
                           onClick={() => handleAiSummary(item.title)}
                           disabled={loadingAi[item.title] || cooldownRemaining[item.title] > 0}
                           className={`text-[10px] px-4 py-2 rounded-full border transition-all flex items-center gap-2 font-bold ${
                             cooldownRemaining[item.title] > 0
                             ? "bg-white/5 border-white/10 text-gray-500 cursor-not-allowed" 
-                            : "bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20 active:scale-95"
+                            : "bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 hover:border-blue-400 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] active:scale-95"
                           }`}
                         >
                           {loadingAi[item.title] ? "Menganalisa..." : cooldownRemaining[item.title] > 0 ? `⏳ Wait ${cooldownRemaining[item.title]}s` : "✨ Ringkas AI"}
                         </button>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-gray-300 leading-relaxed bg-blue-500/[0.03] p-4 rounded-2xl border border-blue-500/10 shadow-inner animate-in fade-in duration-500">
-                        <span className="font-bold text-blue-400">Deep Analysis: </span>{summary[item.title]}
+                      // Sci-Fi AI Box
+                      <div className="text-[11px] text-gray-300 leading-relaxed bg-white/[0.02] p-4 rounded-r-2xl rounded-l-md border border-white/5 border-l-2 border-l-blue-500 shadow-inner animate-in fade-in duration-500 backdrop-blur-sm">
+                        <span className="font-bold text-blue-400 block mb-1">Deep Analysis</span>
+                        {summary[item.title]}
                       </div>
                     )}
                   </div>
@@ -274,9 +274,9 @@ export default function App() {
           )}
         </div>
 
-        {/* Sidebar Developer (Tampil di Desktop & Muncul Paling Bawah di HP) */}
+        {/* Sidebar Developer Desktop */}
         <aside className="lg:col-span-1 mt-8 lg:mt-0">
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl">
+          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl hidden lg:block">
             <div className="relative w-28 h-28 mx-auto mb-6">
               <div className="absolute inset-0 bg-white/10 rounded-full blur-xl animate-pulse"></div>
               <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="relative w-28 h-28 rounded-full border-2 border-white/10 object-cover shadow-2xl" />
@@ -288,7 +288,7 @@ export default function App() {
             <div className="flex flex-col gap-3 mt-6">
               <div className="flex flex-wrap gap-2 justify-center">
                 <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5"><Github size={14}/></a>
-                <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#3b82f6] transition text-gray-400 border border-white/5"><Send size={14}/></a>
+                <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-blue-400 transition text-gray-400 border border-white/5"><Send size={14}/></a>
                 <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#ec4899] transition text-gray-400 border border-white/5"><Instagram size={14}/></a>
                 <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5"><PlayCircle size={14}/></a>
               </div>
@@ -311,4 +311,4 @@ export default function App() {
       </div>
     </div>
   );
-          }
+    }
