@@ -11,6 +11,7 @@ export default function App() {
   const [activeFilter, setActiveFilter] = useState("Semua");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
+  // Ref buat interval auto-update 5 menit
   const intervalRef = useRef(null);
 
   const fetchNews = async () => {
@@ -41,6 +42,8 @@ export default function App() {
       const mergedNews = allResults.flat().sort(() => Math.random() - 0.5);
       
       setNews(mergedNews);
+      
+      // Pertahankan filter saat auto-update jalan
       setActiveFilter((currentFilter) => {
         if (currentFilter === "Semua") {
           setFilteredNews(mergedNews);
@@ -57,7 +60,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchNews();
+    fetchNews(); // Tarik berita saat web pertama kali dibuka
+    
     // Auto-refresh setiap 5 menit (300.000 ms)
     intervalRef.current = setInterval(() => {
       fetchNews();
@@ -94,12 +98,13 @@ export default function App() {
     
     setLoadingAi(prev => ({ ...prev, [index]: true }));
     try {
-      // Prompt untuk analisa mendalam (1 paragraf padat)
+      // Prompt AI 1 paragraf padat (3-4 kalimat)
       const prompt = `Analisis dan ringkas berita ini secara mendalam dalam satu paragraf utuh (sekitar 3-4 kalimat) yang padat, jelas, dan informatif: ${title}`;
       const res = await fetch(`https://api.nexray.web.id/ai/gpt-3.5-turbo?text=${encodeURIComponent(prompt)}`);
       const data = await res.json();
       setSummary(prev => ({ ...prev, [index]: data.result }));
       
+      // Mulai cooldown 20 detik
       startCooldown(index);
     } catch (err) {
       setSummary(prev => ({ ...prev, [index]: "Gagal memproses analisis. Server sedang sibuk." }));
@@ -123,7 +128,7 @@ export default function App() {
             <span className="text-white">Indo</span>
             <span className="text-[#ea580c]">Sawi</span>
             <div className="relative inline-flex items-center justify-center w-8 h-8 -ml-1 -mt-1">
-              {/* Glow Brondolan Sawit (Deep Orange/Amber) - Intensitas diturunkan */}
+              {/* Glow Brondolan Sawit (Deep Orange/Amber) */}
               <div className="absolute inset-0 bg-[#ea580c] opacity-40 blur-[10px] rounded-full"></div>
               <img 
                 src="https://j.top4top.io/p_37192jn0n0.png" 
@@ -294,4 +299,4 @@ export default function App() {
       </div>
     </div>
   );
-        }
+  } 
