@@ -17,12 +17,11 @@ export default function App() {
     setCooldownRemaining(prev => ({ ...prev, [title]: initialTime }));
     const timer = setInterval(() => {
       setCooldownRemaining(prev => {
-        const current = prev[title];
-        if (current <= 1) {
+        if (prev[title] <= 1) {
           clearInterval(timer);
           return { ...prev, [title]: 0 };
         }
-        return { ...prev, [title]: current - 1 };
+        return { ...prev, [title]: prev[title] - 1 };
       });
     }, 1000);
   };
@@ -55,14 +54,7 @@ export default function App() {
       const mergedNews = allResults.flat().sort(() => Math.random() - 0.5);
       
       setNews(mergedNews);
-      setActiveFilter((currentFilter) => {
-        if (currentFilter === "Semua") {
-          setFilteredNews(mergedNews);
-        } else {
-          setFilteredNews(mergedNews.filter(item => item.source === currentFilter));
-        }
-        return currentFilter;
-      });
+      setFilteredNews(activeFilter === "Semua" ? mergedNews : mergedNews.filter(n => n.source === activeFilter));
     } catch (error) {
       console.error('Gagal memuat berita terkini');
     } finally {
@@ -72,19 +64,14 @@ export default function App() {
 
   useEffect(() => {
     fetchNews();
-    
-    // --- SISTEM LOCALSTORAGE ANTI-REFRESH ---
     const savedCooldowns = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
     const savedSummaries = JSON.parse(localStorage.getItem('indosawit_summaries') || '{}');
-    
     setSummary(savedSummaries);
 
     const now = Date.now();
     Object.keys(savedCooldowns).forEach(title => {
       const timeLeft = Math.ceil((savedCooldowns[title] - now) / 1000);
-      if (timeLeft > 0) {
-        startCooldownTimer(title, timeLeft);
-      }
+      if (timeLeft > 0) startCooldownTimer(title, timeLeft);
     });
 
     intervalRef.current = setInterval(fetchNews, 300000);
@@ -93,19 +80,14 @@ export default function App() {
 
   const handleFilter = (source) => {
     setActiveFilter(source);
-    if (source === "Semua") {
-      setFilteredNews(news);
-    } else {
-      setFilteredNews(news.filter(item => item.source === source));
-    }
+    setFilteredNews(source === "Semua" ? news : news.filter(item => item.source === source));
   };
 
   const handleAiSummary = async (title) => {
     if (summary[title] || loadingAi[title] || cooldownRemaining[title] > 0) return;
-    
     setLoadingAi(prev => ({ ...prev, [title]: true }));
     try {
-      const prompt = `Analisis mendalam 1 paragraf utuh (sekitar 3-4 kalimat) yang padat, jelas, dan informatif: ${title}`;
+      const prompt = `Analisis mendalam 1 paragraf utuh (3-4 kalimat) yang padat dan informatif: ${title}`;
       const res = await fetch(`https://api.nexray.web.id/ai/gpt-3.5-turbo?text=${encodeURIComponent(prompt)}`);
       const data = await res.json();
       
@@ -119,9 +101,7 @@ export default function App() {
       const currentSaved = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
       currentSaved[title] = expiry;
       localStorage.setItem('indosawit_cooldowns', JSON.stringify(currentSaved));
-
       startCooldownTimer(title, 20);
-
     } catch (err) {
       setSummary(prev => ({ ...prev, [title]: "Gagal memproses analisis AI." }));
     } finally {
@@ -129,82 +109,56 @@ export default function App() {
     }
   };
 
-  const scrollToDevInfo = () => {
-    setIsMenuOpen(false);
-    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
-  };
-
   return (
-    <div className="min-h-screen p-4 md:p-8 font-sans transition-colors duration-500 text-white bg-[#050705]">
+    <div className="min-h-screen font-sans text-white bg-[#050705]">
       
-      {/* Header Glassmorphism */}
-      <nav className="sticky top-4 z-50 p-5 rounded-[28px] flex justify-between items-center mb-8 bg-white/[0.03] backdrop-blur-xl border border-white/5 shadow-2xl">
-        <div className="flex flex-col">
-          <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter flex items-center gap-1">
-            <span className="text-white">Indo</span>
-            <span className="text-green-500">Sawi</span>
-            <div className="relative inline-flex items-center justify-center w-8 h-8 -ml-1 -mt-1">
-              {/* Glow Oranye Brondolan */}
-              <div className="absolute inset-0 bg-orange-500 opacity-50 blur-[10px] rounded-full animate-pulse"></div>
-              <img src="https://j.top4top.io/p_37192jn0n0.png" alt="logo" className="relative z-10 w-full h-full object-contain drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-            </div>
-            <span className="text-gray-500">.news</span>
-          </h1>
-        </div>
+      {/* Header */}
+      <nav className="sticky top-4 z-50 mx-4 md:mx-8 p-5 rounded-[28px] flex justify-between items-center mb-8 bg-white/[0.03] backdrop-blur-xl border border-white/5 shadow-2xl">
+        <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter flex items-center gap-1">
+          <span className="text-white">Indo</span>
+          {/* Teks "Sawi" dengan Glow Hijau Tipis */}
+          <span className="text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.6)]">Sawi</span>
+          <div className="relative w-8 h-8 -ml-1">
+            {/* Glow Oranye pada Pohon Sawit tetap dipertahankan */}
+            <div className="absolute inset-0 bg-orange-500/30 blur-[6px] rounded-full animate-pulse"></div>
+            <img src="https://j.top4top.io/p_37192jn0n0.png" alt="logo" className="relative z-10 w-full h-full object-contain" />
+          </div>
+          <span className="text-gray-200 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]">.news</span>
+        </h1>
 
-        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden p-2 text-white bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition">
-          {isMenuOpen ? <X size={24}/> : <Menu size={24}/>}
-        </button>
-
-        <div className="hidden md:flex gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full text-[10px] font-bold text-green-400 uppercase tracking-widest">
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full text-[10px] font-bold text-green-400 uppercase tracking-widest">
              <CheckCircle2 size={14}/> Server Optimal
           </div>
-          <button onClick={scrollToDevInfo} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest transition border border-white/5">
-            <User size={14}/> Info Dev
+          <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 bg-white/5 rounded-xl border border-white/10 text-blue-400 hover:bg-white/10">
+            {isMenuOpen ? <X size={24}/> : <Menu size={24}/>}
           </button>
         </div>
       </nav>
 
-      {/* Mobile Menu Premium */}
+      {/* Hamburger Menu (Quick Nav Only) */}
       {isMenuOpen && (
-        <div className="md:hidden glass-card rounded-3xl p-6 mb-6 animate-in slide-in-from-top duration-300 border border-white/5 bg-white/[0.02] backdrop-blur-xl">
-          <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
-            <h3 className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Navigasi Profil</h3>
-            <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full"><CheckCircle2 size={10}/> Server Optimal</span>
+        <div className="mx-4 md:mx-8 glass-card rounded-3xl p-6 mb-6 animate-in slide-in-from-top duration-300 border border-white/5 bg-white/[0.02] backdrop-blur-xl">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Status Sistem</h3>
+            <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full"><CheckCircle2 size={10}/> Link Aktif</span>
           </div>
-          
-          <div className="flex flex-col items-center mb-6">
-             <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="w-16 h-16 rounded-full border border-white/10 object-cover shadow-lg mb-2" />
-             <h2 className="text-sm font-black tracking-tight text-white">Rahmat</h2>
-             <p className="text-[10px] text-blue-400 font-mono font-bold">@R_hmt ofc</p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3">
-             <div className="grid grid-cols-4 gap-2">
-                <a href="https://github.com/rahmat-369" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><Github size={16}/></a>
-                <a href="https://t.me/rAi_engine" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-blue-400"><Send size={16}/></a>
-                <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-[#ec4899]"><Instagram size={16}/></a>
-                <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><PlayCircle size={16}/></a>
-             </div>
-             <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 bg-[#25D366]/10 px-4 py-3 rounded-2xl text-[10px] font-bold text-[#25D366] border border-[#25D366]/20">
-               <MessageCircle size={16} /> Join WhatsApp Channel
-             </a>
+          <div className="grid grid-cols-2 gap-3">
+             <button onClick={() => { setIsMenuOpen(false); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="p-3 bg-white/5 rounded-2xl text-[11px] font-bold border border-white/5 text-center">Berita Terbaru</button>
+             <button onClick={() => { setIsMenuOpen(false); window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); }} className="p-3 bg-white/5 rounded-2xl text-[11px] font-bold border border-white/5 text-center">Info Developer</button>
           </div>
         </div>
       )}
 
-      {/* Filter Bar - Modern Hollow Style */}
-      <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-4 items-center">
-        <Filter size={16} className="text-gray-500 shrink-0 ml-2"/>
+      {/* Filter Bar */}
+      <div className="flex gap-2 overflow-x-auto px-4 md:px-8 pb-6 no-scrollbar mb-4 items-center">
+        <Filter size={16} className="text-gray-500 shrink-0"/>
         {["Semua", "CNBC", "CNN", "Kompas", "Sindo", "Suara"].map((source) => (
           <button
             key={source}
             onClick={() => handleFilter(source)}
             className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shrink-0 border ${
-              activeFilter === source 
-              ? "bg-blue-500/10 border-blue-400 text-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.2)]" 
-              : "bg-white/5 border-white/5 text-gray-400 hover:text-white"
+              activeFilter === source ? "bg-blue-500/10 border-blue-400 text-blue-400" : "bg-white/5 border-white/5 text-gray-400"
             }`}
           >
             {source}
@@ -212,103 +166,90 @@ export default function App() {
         ))}
       </div>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
-        
-        {/* Berita Grid */}
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {loading ? (
-            Array(6).fill(0).map((_, i) => <div key={i} className="h-72 bg-white/[0.02] border border-white/5 rounded-[32px] animate-pulse"></div>)
-          ) : filteredNews.length > 0 ? (
-            filteredNews.map((item, i) => (
-              <div key={i} className="bg-white/[0.02] backdrop-blur-xl rounded-[32px] overflow-hidden group hover:border-blue-500/30 transition-all duration-500 flex flex-col border border-white/5 shadow-xl">
-                <div className="relative h-48 overflow-hidden">
-                  <img src={item.image} alt="Thumbnail" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#050705] via-[#050705]/80 to-transparent"></div>
-                  {/* Badge Sumber Berita (Lebih Elegan) */}
-                  <span className="absolute top-4 left-4 text-[9px] bg-blue-500/20 backdrop-blur-md px-3 py-1 rounded-full text-blue-300 font-bold uppercase tracking-[0.2em] border border-blue-500/30 shadow-lg">
-                    {item.source}
-                  </span>
-                </div>
-                
-                <div className="p-6 flex-1 flex flex-col justify-between -mt-12 relative z-10">
-                  <div>
-                    {/* Judul Berita - Default Putih, Hover Biru */}
-                    <h3 className="text-sm font-bold leading-relaxed text-gray-100 group-hover:text-blue-400 transition-colors duration-300">{item.title}</h3>
-                    <p className="text-[10px] text-gray-500 mt-3 font-mono opacity-60">{item.time}</p>
-                  </div>
-                  
-                  <div className="mt-5 pt-5 border-t border-white/5">
-                    {!summary[item.title] ? (
-                      <div className="flex justify-between items-center">
-                        <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition-all">
-                          BACA FULL <ExternalLink size={10}/>
-                        </a>
-                        {/* Tombol AI Neon Style */}
-                        <button 
-                          onClick={() => handleAiSummary(item.title)}
-                          disabled={loadingAi[item.title] || cooldownRemaining[item.title] > 0}
-                          className={`text-[10px] px-4 py-2 rounded-full border transition-all flex items-center gap-2 font-bold ${
-                            cooldownRemaining[item.title] > 0
-                            ? "bg-white/5 border-white/10 text-gray-500 cursor-not-allowed" 
-                            : "bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 hover:border-blue-400 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] active:scale-95"
-                          }`}
-                        >
-                          {loadingAi[item.title] ? "Menganalisa..." : cooldownRemaining[item.title] > 0 ? `⏳ Wait ${cooldownRemaining[item.title]}s` : "✨ Ringkas AI"}
-                        </button>
-                      </div>
-                    ) : (
-                      // Sci-Fi AI Box
-                      <div className="text-[11px] text-gray-300 leading-relaxed bg-white/[0.02] p-4 rounded-r-2xl rounded-l-md border border-white/5 border-l-2 border-l-blue-500 shadow-inner animate-in fade-in duration-500 backdrop-blur-sm">
-                        <span className="font-bold text-blue-400 block mb-1">Deep Analysis</span>
-                        {summary[item.title]}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center text-gray-500 font-mono text-xs border border-dashed border-white/10 rounded-[32px]">
-              Belum ada berita dari sumber ini 🗿
-            </div>
-          )}
-        </div>
-
-        {/* Sidebar Developer Desktop */}
-        <aside className="lg:col-span-1 mt-8 lg:mt-0">
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl hidden lg:block">
-            <div className="relative w-28 h-28 mx-auto mb-6">
-              <div className="absolute inset-0 bg-white/10 rounded-full blur-xl animate-pulse"></div>
-              <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="relative w-28 h-28 rounded-full border-2 border-white/10 object-cover shadow-2xl" />
+      {/* Main News Grid */}
+      <div className="max-w-7xl mx-auto px-4 md:px-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+        {loading ? (
+          Array(6).fill(0).map((_, i) => <div key={i} className="h-72 bg-white/[0.02] border border-white/5 rounded-[32px] animate-pulse"></div>)
+        ) : filteredNews.map((item, i) => (
+          <div key={i} className="bg-white/[0.02] backdrop-blur-xl rounded-[32px] overflow-hidden group hover:border-blue-500/30 transition-all duration-500 flex flex-col border border-white/5 shadow-xl">
+            <div className="relative h-48 overflow-hidden">
+              <img src={item.image} alt="News" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050705] via-[#050705]/40 to-transparent"></div>
+              <span className="absolute top-4 left-4 text-[9px] bg-blue-500/20 backdrop-blur-md px-3 py-1 rounded-full text-blue-300 font-bold uppercase border border-blue-500/30">{item.source}</span>
             </div>
             
-            <h2 className="text-xl font-black tracking-tight text-center text-white">Rahmat</h2>
-            <p className="text-[11px] text-blue-400 font-mono mt-1 text-center font-bold">@R_hmt ofc</p>
-            
-            <div className="flex flex-col gap-3 mt-6">
-              <div className="flex flex-wrap gap-2 justify-center">
-                <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5"><Github size={14}/></a>
-                <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-blue-400 transition text-gray-400 border border-white/5"><Send size={14}/></a>
-                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#ec4899] transition text-gray-400 border border-white/5"><Instagram size={14}/></a>
-                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5"><PlayCircle size={14}/></a>
+            <div className="p-6 flex-1 flex flex-col justify-between">
+              <div>
+                {/* Judul Berita - Hover memunculkan garis bawah biru tanpa mengubah warna teks */}
+                <div className="inline-block group-hover:border-b group-hover:border-blue-500/50 transition-all duration-300 pb-1">
+                  <h3 className="text-sm font-bold leading-relaxed text-gray-100 inline">
+                    {item.title}
+                  </h3>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-3 font-mono opacity-60">{item.time}</p>
               </div>
-              <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-2 bg-[#25D366]/10 px-4 py-3 rounded-xl text-[10px] font-bold hover:bg-[#25D366]/20 text-[#25D366] transition border border-[#25D366]/20 text-center leading-relaxed">
-                <MessageCircle size={16} /> Join WhatsApp Channel
-              </a>
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-white/5 text-left">
-              <h3 className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-4 text-center">Sirkuit Proyek</h3>
-              <ul className="text-[11px] text-gray-300 space-y-3 px-2">
-                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> Flora Scan AI</li>
-                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> WatchNime</li>
-                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> Ramadhan Lantern</li>
-              </ul>
+              
+              <div className="mt-5 pt-5 border-t border-white/5">
+                {!summary[item.title] ? (
+                  <div className="flex justify-between items-center">
+                    <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1">BACA FULL <ExternalLink size={10}/></a>
+                    <button onClick={() => handleAiSummary(item.title)} disabled={loadingAi[item.title] || cooldownRemaining[item.title] > 0}
+                      className={`text-[10px] px-4 py-2 rounded-full border transition-all font-bold ${
+                        cooldownRemaining[item.title] > 0 ? "text-gray-500 border-white/10" : "bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20"
+                      }`}>
+                      {loadingAi[item.title] ? "Menganalisa..." : cooldownRemaining[item.title] > 0 ? `⏳ ${cooldownRemaining[item.title]}s` : "✨ Ringkas AI"}
+                    </button>
+                  </div>
+                ) : (
+                  // Efek Fade-In Smooth (muncul perlahan sekaligus)
+                  <div className="text-[11px] text-gray-300 leading-relaxed bg-white/[0.01] p-4 rounded-r-2xl border-l-2 border-l-blue-500 animate-in fade-in duration-1000">
+                    <span className="font-bold text-blue-400 block mb-1 uppercase tracking-tighter">Deep Analysis</span>
+                    {summary[item.title]}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </aside>
-
+        ))}
       </div>
+
+      {/* FOOTER PREMIUM - INFO DEV */}
+      <footer className="mt-20 border-t border-white/5 bg-white/[0.01] backdrop-blur-sm p-10 md:p-16">
+        <div className="max-w-4xl mx-auto flex flex-col items-center text-center">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full"></div>
+            <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Dev" className="relative w-24 h-24 rounded-full border-2 border-white/10 object-cover shadow-2xl" />
+          </div>
+          
+          <h2 className="text-2xl font-black tracking-tighter text-white">Rahmat</h2>
+          <p className="text-blue-400 font-mono text-[11px] font-bold uppercase tracking-[0.3em] mb-4">Developer & AI Prompting Engine</p>
+          
+          <p className="text-gray-400 text-xs leading-relaxed max-w-md mb-8 italic">
+            "Membangun ekosistem informasi cerdas berbasis AI untuk masa depan digital Indonesia."
+          </p>
+
+          <div className="flex flex-wrap justify-center gap-4 mb-10">
+            <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-white text-gray-400 transition-all border border-white/5 hover:border-white/20"><Github size={20}/></a>
+            <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-blue-400 text-gray-400 transition-all border border-white/5 hover:border-blue-400/20"><Send size={20}/></a>
+            <a href="https://www.instagram.com/rahmt_nhw?igsh=MWQwcnB3bTA2ZnVidg==" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-pink-500 text-gray-400 transition-all border border-white/5 hover:border-pink-500/20"><Instagram size={20}/></a>
+            <a href="https://www.tiktok.com/@r_hmtofc?_r=1&_t=ZS-94KRfWQjeUu" target="_blank" rel="noreferrer" className="p-3 bg-white/5 rounded-2xl hover:text-white text-gray-400 transition-all border border-white/5 hover:border-white/20"><PlayCircle size={20}/></a>
+          </div>
+
+          <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-[#25D366]/10 px-8 py-4 rounded-full text-xs font-bold text-[#25D366] border border-[#25D366]/20 hover:bg-[#25D366]/20 transition-all mb-12 shadow-lg shadow-[#25D366]/5">
+            <MessageCircle size={18} /> JOIN WHATSAPP CHANNEL
+          </a>
+
+          <div className="pt-8 border-t border-white/5 w-full flex flex-col md:flex-row justify-between items-center gap-4 opacity-40">
+            <p className="text-[10px] font-mono">© 2026 INDOSAWIT.NEWS - KARYA DILINDUNGI</p>
+            <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest">
+              <span>Privacy</span>
+              <span>Terms</span>
+              <span>v2.4 Final</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
-    }
+         }
