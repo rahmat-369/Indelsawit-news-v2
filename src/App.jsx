@@ -1,89 +1,182 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { Menu, X, Filter, User, ExternalLink, Github, Send, Instagram, PlayCircle, MessageCircle } from "lucide-react";
 
 export default function App() {
   const [news, setNews] = useState([]);
+  const [filteredNews, setFilteredNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({});
   const [loadingAi, setLoadingAi] = useState({});
+  const [cooldownRemaining, setCooldownRemaining] = useState({});
+  const [activeFilter, setActiveFilter] = useState("Semua");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  const intervalRef = useRef(null);
+
+  const fetchNews = async () => {
+    const APIS = [
+      { name: 'CNBC', url: 'https://api.nexray.web.id/berita/cnbcindonesia' },
+      { name: 'CNN', url: 'https://api.nexray.web.id/berita/cnn' },
+      { name: 'Kompas', url: 'https://api.nexray.web.id/berita/kompas' },
+      { name: 'Sindo', url: 'https://api.nexray.web.id/berita/sindonews' },
+      { name: 'Suara', url: 'https://api.nexray.web.id/berita/suara' }
+    ];
+
+    try {
+      const fetchPromises = APIS.map(async (api) => {
+        try {
+          const res = await fetch(api.url);
+          const data = await res.json();
+          return (data.result || []).map((item) => ({
+            title: item.title || 'Tanpa Judul',
+            link: item.link || '#',
+            image: item.image || item.image_thumbnail || item.imageUrl || 'https://via.placeholder.com/500x300?text=No+Image',
+            source: api.name,
+            time: item.date || item.timestamp || item.time || 'Baru saja',
+          }));
+        } catch (err) { return []; }
+      });
+
+      const allResults = await Promise.all(fetchPromises);
+      const mergedNews = allResults.flat().sort(() => Math.random() - 0.5);
+      
+      setNews(mergedNews);
+      setActiveFilter((currentFilter) => {
+        if (currentFilter === "Semua") {
+          setFilteredNews(mergedNews);
+        } else {
+          setFilteredNews(mergedNews.filter(item => item.source === currentFilter));
+        }
+        return currentFilter;
+      });
+    } catch (error) {
+      console.error('Gagal memuat berita terkini');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchNews = async () => {
-      const APIS = [
-        { name: 'CNBC', url: 'https://api.nexray.web.id/berita/cnbcindonesia' },
-        { name: 'CNN', url: 'https://api.nexray.web.id/berita/cnn' },
-        { name: 'Kompas', url: 'https://api.nexray.web.id/berita/kompas' },
-        { name: 'Sindo', url: 'https://api.nexray.web.id/berita/sindonews' },
-        { name: 'Suara', url: 'https://api.nexray.web.id/berita/suara' }
-      ];
-
-      try {
-        const fetchPromises = APIS.map(async (api) => {
-          try {
-            const res = await fetch(api.url);
-            const data = await res.json();
-            return (data.result || []).map((item) => ({
-              title: item.title || 'Tanpa Judul',
-              link: item.link || '#',
-              image: item.image || item.image_thumbnail || item.imageUrl || 'https://via.placeholder.com/500x300?text=No+Image',
-              source: api.name,
-              time: item.date || item.timestamp || item.time || 'Baru saja',
-            }));
-          } catch (err) { return []; }
-        });
-
-        const allResults = await Promise.all(fetchPromises);
-        const mergedNews = allResults.flat().sort(() => Math.random() - 0.5);
-        setNews(mergedNews);
-      } catch (error) {
-        console.error('Gagal mengambil berita');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchNews();
+    // Auto-refresh setiap 5 menit (300.000 ms)
+    intervalRef.current = setInterval(() => {
+      fetchNews();
+    }, 300000);
+
+    return () => clearInterval(intervalRef.current);
   }, []);
 
+  const handleFilter = (source) => {
+    setActiveFilter(source);
+    if (source === "Semua") {
+      setFilteredNews(news);
+    } else {
+      setFilteredNews(news.filter(item => item.source === source));
+    }
+  };
+
+  const startCooldown = (index) => {
+    setCooldownRemaining(prev => ({ ...prev, [index]: 20 }));
+    const timer = setInterval(() => {
+      setCooldownRemaining(prev => {
+        const current = prev[index];
+        if (current <= 1) {
+          clearInterval(timer);
+          return { ...prev, [index]: 0 };
+        }
+        return { ...prev, [index]: current - 1 };
+      });
+    }, 1000);
+  };
+
   const handleAiSummary = async (title, index) => {
-    if (summary[index]) return;
+    if (summary[index] || loadingAi[index] || cooldownRemaining[index] > 0) return;
+    
     setLoadingAi(prev => ({ ...prev, [index]: true }));
     try {
-      const prompt = `Ringkas berita ini secara formal dalam 2 kalimat: ${title}`;
+      // Prompt untuk analisa mendalam (1 paragraf padat)
+      const prompt = `Analisis dan ringkas berita ini secara mendalam dalam satu paragraf utuh (sekitar 3-4 kalimat) yang padat, jelas, dan informatif: ${title}`;
       const res = await fetch(`https://api.nexray.web.id/ai/gpt-3.5-turbo?text=${encodeURIComponent(prompt)}`);
       const data = await res.json();
       setSummary(prev => ({ ...prev, [index]: data.result }));
+      
+      startCooldown(index);
     } catch (err) {
-      setSummary(prev => ({ ...prev, [index]: "Gagal memuat ringkasan." }));
+      setSummary(prev => ({ ...prev, [index]: "Gagal memproses analisis. Server sedang sibuk." }));
+    } finally {
+      setLoadingAi(prev => ({ ...prev, [index]: false }));
     }
-    setLoadingAi(prev => ({ ...prev, [index]: false }));
+  };
+
+  const scrollToDevInfo = () => {
+    setIsMenuOpen(false);
+    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 font-sans">
-      {/* Header / Navbar */}
-      <nav className="glass-card sticky top-4 z-50 p-6 rounded-[32px] flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-3xl font-black italic tracking-tighter flex items-center">
+    <div className="min-h-screen p-4 md:p-8 font-sans transition-colors duration-500 text-white">
+      
+      {/* Header Glassmorphism */}
+      <nav className="sticky top-4 z-50 p-5 rounded-[28px] flex justify-between items-center mb-8 bg-white/[0.03] backdrop-blur-xl border border-white/5 shadow-2xl">
+        <div className="flex flex-col">
+          <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter flex items-center gap-1">
             <span className="text-white">Indo</span>
-            <span className="text-green-500">Sawi</span>
-            {/* Logo Custom SVG/PNG */}
+            <span className="text-[#ea580c]">Sawi</span>
             <div className="relative inline-flex items-center justify-center w-8 h-8 -ml-1 -mt-1">
-              <div className="absolute inset-0 bg-green-500 blur-md opacity-40 animate-pulse rounded-full"></div>
+              {/* Glow Brondolan Sawit (Deep Orange/Amber) - Intensitas diturunkan */}
+              <div className="absolute inset-0 bg-[#ea580c] opacity-40 blur-[10px] rounded-full"></div>
               <img 
                 src="https://j.top4top.io/p_37192jn0n0.png" 
-                alt="t" 
-                className="relative z-10 w-full h-full object-contain drop-shadow-[0_0_8px_rgba(34,197,94,0.6)]" 
+                alt="logo" 
+                className="relative z-10 w-full h-full object-contain drop-shadow-[0_0_8px_rgba(234,88,12,0.5)]" 
               />
             </div>
-            <span className="text-gray-500 ml-0.5">.news</span>
+            <span className="text-gray-500">.news</span>
           </h1>
-          <p className="text-[9px] text-gray-500 uppercase tracking-[0.2em] mt-1 font-bold pl-1">Aggregator Kabar Terkini</p>
         </div>
-        <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-green-500/10 rounded-full border border-green-500/20">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Server Optimal</span>
+
+        {/* Hamburger Mobile */}
+        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden p-2 text-white bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition">
+          {isMenuOpen ? <X size={24}/> : <Menu size={24}/>}
+        </button>
+
+        {/* Desktop Menu */}
+        <div className="hidden md:flex gap-4">
+          <button onClick={scrollToDevInfo} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest transition border border-white/5">
+            <User size={14}/> Info Dev
+          </button>
         </div>
       </nav>
+
+      {/* Mobile Menu Slidedown */}
+      {isMenuOpen && (
+        <div className="md:hidden glass-card rounded-3xl p-6 mb-6 animate-in slide-in-from-top duration-300 border border-white/5 bg-white/[0.02] backdrop-blur-xl">
+          <h3 className="text-[10px] text-[#ea580c] font-bold uppercase tracking-widest mb-4">Navigasi Cepat</h3>
+          <div className="grid grid-cols-1 gap-3">
+             <button onClick={scrollToDevInfo} className="flex items-center justify-center gap-2 p-3 bg-white/5 rounded-2xl text-[11px] font-bold border border-white/5 hover:bg-white/10">
+               <User size={14}/> Lihat Profil Developer
+             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Bar */}
+      <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-4 items-center">
+        <Filter size={16} className="text-gray-500 shrink-0 ml-2"/>
+        {["Semua", "CNBC", "CNN", "Kompas", "Sindo", "Suara"].map((source) => (
+          <button
+            key={source}
+            onClick={() => handleFilter(source)}
+            className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shrink-0 border ${
+              activeFilter === source 
+              ? "bg-[#ea580c] border-[#ea580c] text-white shadow-[0_0_15px_rgba(234,88,12,0.3)]" 
+              : "bg-white/5 border-white/5 text-gray-400 hover:text-white"
+            }`}
+          >
+            {source}
+          </button>
+        ))}
+      </div>
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
         
@@ -91,40 +184,46 @@ export default function App() {
         <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
           {loading ? (
             Array(6).fill(0).map((_, i) => (
-              <div key={i} className="h-72 glass-card rounded-[32px] animate-pulse"></div>
+              <div key={i} className="h-72 bg-white/[0.02] border border-white/5 rounded-[32px] animate-pulse"></div>
             ))
-          ) : news.length > 0 ? (
-            news.map((item, i) => (
-              <div key={i} className="glass-card rounded-[32px] overflow-hidden group hover:border-green-500/30 transition-all duration-500 flex flex-col">
+          ) : filteredNews.length > 0 ? (
+            filteredNews.map((item, i) => (
+              <div key={i} className="bg-white/[0.02] backdrop-blur-xl rounded-[32px] overflow-hidden group hover:border-[#ea580c]/30 transition-all duration-500 flex flex-col border border-white/5 shadow-xl">
                 <div className="relative h-48 overflow-hidden">
-                  <img src={item.image} alt="Thumbnail" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" />
+                  <img src={item.image} alt="Thumbnail" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050705] to-transparent"></div>
-                  <span className="absolute top-4 left-4 text-[10px] bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-green-400 font-bold uppercase tracking-widest border border-green-500/30 shadow-lg">
+                  <span className="absolute top-4 left-4 text-[9px] bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-[#ea580c] font-bold uppercase tracking-[0.2em] border border-[#ea580c]/20 shadow-lg">
                     {item.source}
                   </span>
                 </div>
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-sm font-bold leading-snug group-hover:text-green-400 transition-colors">{item.title}</h3>
-                    <p className="text-[10px] text-gray-500 mt-2 font-mono">{item.time}</p>
+                    <h3 className="text-sm font-bold leading-tight group-hover:text-[#ea580c] transition-colors duration-300">{item.title}</h3>
+                    <p className="text-[10px] text-gray-500 mt-3 font-mono opacity-60">{item.time}</p>
                   </div>
                   
-                  {/* AI Summary Section */}
-                  <div className="mt-4 pt-4 border-t border-white/5">
+                  {/* AI Summary Section with 20s Cooldown */}
+                  <div className="mt-5 pt-5 border-t border-white/5">
                     {!summary[i] ? (
                       <div className="flex justify-between items-center">
-                        <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-white underline tracking-widest font-bold">BACA FULL →</a>
+                        <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-[#ea580c] font-bold flex items-center gap-1 transition-all">
+                          BACA FULL <ExternalLink size={10}/>
+                        </a>
                         <button 
                           onClick={() => handleAiSummary(item.title, i)}
-                          disabled={loadingAi[i]}
-                          className="text-[10px] px-3 py-1.5 bg-green-500/10 text-green-400 rounded-full border border-green-500/20 hover:bg-green-500/20 transition flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                          disabled={loadingAi[i] || cooldownRemaining[i] > 0}
+                          className={`text-[10px] px-4 py-2 rounded-full border transition-all flex items-center gap-2 font-bold ${
+                            cooldownRemaining[i] > 0
+                            ? "bg-white/5 border-white/10 text-gray-500 cursor-not-allowed" 
+                            : "bg-[#ea580c]/10 text-[#ea580c] border-[#ea580c]/20 hover:bg-[#ea580c]/20 active:scale-95"
+                          }`}
                         >
-                          {loadingAi[i] ? "Menganalisa..." : "✨ Ringkas AI"}
+                          {loadingAi[i] ? "Menganalisa..." : cooldownRemaining[i] > 0 ? `⏳ Wait ${cooldownRemaining[i]}s` : "✨ Ringkas AI"}
                         </button>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-gray-300 leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/10 shadow-inner">
-                        <span className="font-bold text-green-400">AI Summary: </span>{summary[i]}
+                      <div className="text-[11px] text-gray-300 leading-relaxed bg-[#ea580c]/[0.03] p-4 rounded-2xl border border-[#ea580c]/10 shadow-inner animate-in fade-in duration-500">
+                        <span className="font-bold text-[#ea580c]">Deep Analysis: </span>{summary[i]}
                       </div>
                     )}
                   </div>
@@ -132,41 +231,62 @@ export default function App() {
               </div>
             ))
           ) : (
-            <div className="col-span-full py-20 text-center text-gray-500 font-mono text-sm border border-dashed border-white/10 rounded-[32px]">
-              Gagal memanen berita. Coba refresh bentar 🗿
+            <div className="col-span-full py-20 text-center text-gray-500 font-mono text-xs border border-dashed border-white/10 rounded-[32px]">
+              Belum ada berita dari sumber ini 🗿
             </div>
           )}
         </div>
 
         {/* Sidebar Developer */}
         <aside className="lg:col-span-1">
-          <div className="glass-card p-6 rounded-[40px] sticky top-28">
-            <div className="relative w-24 h-24 mx-auto mb-4">
-              <div className="absolute inset-0 bg-green-500 rounded-full blur-lg opacity-20 animate-pulse"></div>
-              <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="relative w-24 h-24 rounded-full border-2 border-green-500/50 object-cover shadow-[0_0_15px_rgba(34,197,94,0.3)]" />
+          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl">
+            <div className="relative w-28 h-28 mx-auto mb-6">
+              <div className="absolute inset-0 bg-white/10 rounded-full blur-xl animate-pulse"></div>
+              <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="relative w-28 h-28 rounded-full border-2 border-white/10 object-cover shadow-2xl" />
             </div>
-            <h2 className="text-lg font-black tracking-tight text-center text-white drop-shadow-md">Rahmat</h2>
-            <p className="text-[10px] text-green-400 font-mono mt-1 text-center">@rAi-engine</p>
             
-            {/* Sosmed Links */}
-            <div className="flex flex-wrap gap-2 justify-center mt-6">
-              <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="glass-card px-3 py-1.5 rounded-lg text-[9px] font-bold hover:bg-white/10 hover:text-green-400 transition uppercase tracking-widest">GitHub</a>
-              <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="glass-card px-3 py-1.5 rounded-lg text-[9px] font-bold hover:bg-white/10 hover:text-green-400 transition uppercase tracking-widest">Telegram</a>
-              <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="glass-card px-3 py-1.5 rounded-lg text-[9px] font-bold hover:bg-white/10 hover:text-green-400 transition uppercase tracking-widest">WhatsApp</a>
+            {/* Identity Update */}
+            <h2 className="text-xl font-black tracking-tight text-center text-white">Rahmat</h2>
+            <p className="text-[11px] text-[#ea580c] font-mono mt-1 text-center font-bold">@R_hmt ofc</p>
+            
+            {/* Sosmed Hub (Iconic) */}
+            <div className="flex flex-col gap-3 mt-6">
+              <div className="flex flex-wrap gap-2 justify-center">
+                <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5">
+                  <Github size={14}/> GitHub
+                </a>
+                <a href="https://t.me/rAi_engine" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#3b82f6] transition text-gray-400 border border-white/5">
+                  <Send size={14}/> Telegram
+                </a>
+                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-[#ec4899] transition text-gray-400 border border-white/5">
+                  <Instagram size={14}/> Instagram
+                </a>
+                <a href="#" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5">
+                  <PlayCircle size={14}/> TikTok
+                </a>
+              </div>
+              
+              {/* Pesan Khusus WhatsApp */}
+              <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-2 bg-[#25D366]/10 px-4 py-3 rounded-xl text-[10px] font-bold hover:bg-[#25D366]/20 text-[#25D366] transition border border-[#25D366]/20 text-center leading-relaxed">
+                <MessageCircle size={16} />
+                Join saluran WhatsApp utk info tools lainnya
+              </a>
             </div>
 
             {/* Proyek Lainnya */}
             <div className="mt-8 pt-6 border-t border-white/5 text-left">
-              <h3 className="text-[10px] text-green-500 uppercase tracking-widest font-bold mb-4 text-center">Sirkuit Proyek</h3>
-              <ul className="text-[11px] text-gray-400 space-y-3 px-2">
-                <li className="flex items-center gap-2 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></span> Flora Scan AI</li>
-                <li className="flex items-center gap-2 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></span> WatchNime</li>
-                <li className="flex items-center gap-2 hover:text-white transition-colors cursor-default"><span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></span> Ramadhan Lantern</li>
+              <h3 className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-4 text-center">Sirkuit Proyek</h3>
+              <ul className="text-[11px] text-gray-300 space-y-3 px-2">
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] shadow-[0_0_5px_#ea580c]"></span> Flora Scan AI
+                </li>
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] shadow-[0_0_5px_#ea580c]"></span> WatchNime
+                </li>
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-default">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] shadow-[0_0_5px_#ea580c]"></span> Ramadhan Lantern
+                </li>
               </ul>
-            </div>
-            
-            <div className="mt-8 pt-4 border-t border-white/5 text-center">
-              <p className="text-[8px] text-gray-600 uppercase tracking-widest">Powered by NexRay API Endpoint</p>
             </div>
           </div>
         </aside>
@@ -174,4 +294,4 @@ export default function App() {
       </div>
     </div>
   );
-                                       } 
+        }
