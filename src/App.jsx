@@ -13,6 +13,21 @@ export default function App() {
   
   const intervalRef = useRef(null);
 
+  // Fungsi untuk menjalankan timer cooldown
+  const startCooldownTimer = (title, initialTime) => {
+    setCooldownRemaining(prev => ({ ...prev, [title]: initialTime }));
+    const timer = setInterval(() => {
+      setCooldownRemaining(prev => {
+        const current = prev[title];
+        if (current <= 1) {
+          clearInterval(timer);
+          return { ...prev, [title]: 0 };
+        }
+        return { ...prev, [title]: current - 1 };
+      });
+    }, 1000);
+  };
+
   const fetchNews = async () => {
     const APIS = [
       { name: 'CNBC', url: 'https://api.nexray.web.id/berita/cnbcindonesia' },
@@ -38,6 +53,7 @@ export default function App() {
       });
 
       const allResults = await Promise.all(fetchPromises);
+      // Diacak biar fresh
       const mergedNews = allResults.flat().sort(() => Math.random() - 0.5);
       
       setNews(mergedNews);
@@ -59,27 +75,20 @@ export default function App() {
   useEffect(() => {
     fetchNews();
     
-    // --- SISTEM LOCALSTORAGE ANTI-REFRESH ---
+    // --- SISTEM LOCALSTORAGE ANTI-REFRESH (Pake Judul Berita) ---
     const savedCooldowns = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
-    const now = Date.now();
-    const activeCooldowns = {};
+    const savedSummaries = JSON.parse(localStorage.getItem('indosawit_summaries') || '{}');
     
-    Object.keys(savedCooldowns).forEach(index => {
-      const timeLeft = Math.ceil((savedCooldowns[index] - now) / 1000);
+    // Pulihkan ringkasan yang udah pernah diklik
+    setSummary(savedSummaries);
+
+    const now = Date.now();
+    Object.keys(savedCooldowns).forEach(title => {
+      const timeLeft = Math.ceil((savedCooldowns[title] - now) / 1000);
       if (timeLeft > 0) {
-        activeCooldowns[index] = timeLeft;
-        const timer = setInterval(() => {
-          setCooldownRemaining(prev => {
-            if (prev[index] <= 1) {
-              clearInterval(timer);
-              return { ...prev, [index]: 0 };
-            }
-            return { ...prev, [index]: prev[index] - 1 };
-          });
-        }, 1000);
+        startCooldownTimer(title, timeLeft);
       }
     });
-    setCooldownRemaining(activeCooldowns);
 
     // Auto update 5 Menit
     intervalRef.current = setInterval(fetchNews, 300000);
@@ -95,37 +104,35 @@ export default function App() {
     }
   };
 
-  const handleAiSummary = async (title, index) => {
-    if (summary[index] || loadingAi[index] || cooldownRemaining[index] > 0) return;
+  const handleAiSummary = async (title) => {
+    // Cek berdasarkan judul berita, bukan index
+    if (summary[title] || loadingAi[title] || cooldownRemaining[title] > 0) return;
     
-    setLoadingAi(prev => ({ ...prev, [index]: true }));
+    setLoadingAi(prev => ({ ...prev, [title]: true }));
     try {
       const prompt = `Analisis mendalam 1 paragraf utuh (sekitar 3-4 kalimat) yang padat, jelas, dan informatif: ${title}`;
       const res = await fetch(`https://api.nexray.web.id/ai/gpt-3.5-turbo?text=${encodeURIComponent(prompt)}`);
       const data = await res.json();
-      setSummary(prev => ({ ...prev, [index]: data.result }));
+      
+      // Simpan hasil ke state & LocalStorage biar gak ilang pas refresh
+      setSummary(prev => {
+        const newSummary = { ...prev, [title]: data.result };
+        localStorage.setItem('indosawit_summaries', JSON.stringify(newSummary));
+        return newSummary;
+      });
       
       // Simpan Cooldown 20 Detik ke LocalStorage
       const expiry = Date.now() + 20000;
       const currentSaved = JSON.parse(localStorage.getItem('indosawit_cooldowns') || '{}');
-      currentSaved[index] = expiry;
+      currentSaved[title] = expiry;
       localStorage.setItem('indosawit_cooldowns', JSON.stringify(currentSaved));
 
-      setCooldownRemaining(prev => ({ ...prev, [index]: 20 }));
-      const timer = setInterval(() => {
-        setCooldownRemaining(prev => {
-          if (prev[index] <= 1) {
-            clearInterval(timer);
-            return { ...prev, [index]: 0 };
-          }
-          return { ...prev, [index]: prev[index] - 1 };
-        });
-      }, 1000);
+      startCooldownTimer(title, 20);
 
     } catch (err) {
-      setSummary(prev => ({ ...prev, [index]: "Gagal memproses analisis AI." }));
+      setSummary(prev => ({ ...prev, [title]: "Gagal memproses analisis AI." }));
     } finally {
-      setLoadingAi(prev => ({ ...prev, [index]: false }));
+      setLoadingAi(prev => ({ ...prev, [title]: false }));
     }
   };
 
@@ -142,7 +149,6 @@ export default function App() {
         <div className="flex flex-col">
           <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter flex items-center gap-1">
             <span className="text-white">Indo</span>
-            {/* Teks Hijau, Glow Sawit Oranye */}
             <span className="text-green-500">Sawi</span>
             <div className="relative inline-flex items-center justify-center w-8 h-8 -ml-1 -mt-1">
               <div className="absolute inset-0 bg-orange-500 opacity-50 blur-[10px] rounded-full animate-pulse"></div>
@@ -152,12 +158,10 @@ export default function App() {
           </h1>
         </div>
 
-        {/* Hamburger Mobile */}
         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden p-2 text-white bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition">
           {isMenuOpen ? <X size={24}/> : <Menu size={24}/>}
         </button>
 
-        {/* Desktop Menu */}
         <div className="hidden md:flex gap-4">
           <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full text-[10px] font-bold text-green-400 uppercase tracking-widest">
              <CheckCircle2 size={14}/> Server Optimal
@@ -168,35 +172,35 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Mobile Menu Premium (Fungsional) */}
+      {/* Mobile Menu Premium */}
       {isMenuOpen && (
         <div className="md:hidden glass-card rounded-3xl p-6 mb-6 animate-in slide-in-from-top duration-300 border border-white/5 bg-white/[0.02] backdrop-blur-xl">
           <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
-            <h3 className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Menu Navigasi</h3>
-            <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full"><CheckCircle2 size={10}/> Optimal</span>
+            <h3 className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Navigasi Profil</h3>
+            <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full"><CheckCircle2 size={10}/> Server Optimal</span>
           </div>
           
+          <div className="flex flex-col items-center mb-6">
+             <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="w-16 h-16 rounded-full border border-white/10 object-cover shadow-lg mb-2" />
+             <h2 className="text-sm font-black tracking-tight text-white">Rahmat</h2>
+             <p className="text-[10px] text-blue-400 font-mono font-bold">@R_hmt ofc</p>
+          </div>
+
           <div className="grid grid-cols-1 gap-3">
-             <button onClick={scrollToDevInfo} className="flex items-center justify-center gap-2 p-3 bg-white/5 rounded-2xl text-[11px] font-bold border border-white/5 hover:bg-white/10">
-               <User size={14}/> Profil @R_hmt ofc
-             </button>
-             
-             {/* Mini Social Hub */}
-             <div className="grid grid-cols-4 gap-2 mt-2">
+             <div className="grid grid-cols-4 gap-2">
                 <a href="https://github.com/rahmat-369" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><Github size={16}/></a>
                 <a href="https://t.me/rAi_engine" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-[#3b82f6]"><Send size={16}/></a>
                 <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-[#ec4899]"><Instagram size={16}/></a>
                 <a href="#" className="flex justify-center p-3 bg-white/5 rounded-2xl text-gray-400 hover:text-white"><PlayCircle size={16}/></a>
              </div>
-
-             <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-2 bg-[#25D366]/10 px-4 py-3 rounded-2xl text-[10px] font-bold text-[#25D366] border border-[#25D366]/20">
+             <a href="https://whatsapp.com/channel/0029VbBjyjlJ93wa6hwSWa0p" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 bg-[#25D366]/10 px-4 py-3 rounded-2xl text-[10px] font-bold text-[#25D366] border border-[#25D366]/20">
                <MessageCircle size={16} /> Join WhatsApp Channel
              </a>
           </div>
         </div>
       )}
 
-      {/* Filter Bar - Tema Biru Profesional */}
+      {/* Filter Bar */}
       <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-4 items-center">
         <Filter size={16} className="text-gray-500 shrink-0 ml-2"/>
         {["Semua", "CNBC", "CNN", "Kompas", "Sindo", "Suara"].map((source) => (
@@ -216,12 +220,10 @@ export default function App() {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
         
-        {/* Berita Grid - Aksen Biru */}
+        {/* Berita Grid */}
         <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
           {loading ? (
-            Array(6).fill(0).map((_, i) => (
-              <div key={i} className="h-72 bg-white/[0.02] border border-white/5 rounded-[32px] animate-pulse"></div>
-            ))
+            Array(6).fill(0).map((_, i) => <div key={i} className="h-72 bg-white/[0.02] border border-white/5 rounded-[32px] animate-pulse"></div>)
           ) : filteredNews.length > 0 ? (
             filteredNews.map((item, i) => (
               <div key={i} className="bg-white/[0.02] backdrop-blur-xl rounded-[32px] overflow-hidden group hover:border-blue-500/30 transition-all duration-500 flex flex-col border border-white/5 shadow-xl">
@@ -238,28 +240,27 @@ export default function App() {
                     <p className="text-[10px] text-gray-500 mt-3 font-mono opacity-60">{item.time}</p>
                   </div>
                   
-                  {/* AI Summary Section with Cooldown */}
                   <div className="mt-5 pt-5 border-t border-white/5">
-                    {!summary[i] ? (
+                    {!summary[item.title] ? (
                       <div className="flex justify-between items-center">
                         <a href={item.link} target="_blank" rel="noreferrer" className="text-[10px] text-gray-500 hover:text-blue-400 font-bold flex items-center gap-1 transition-all">
                           BACA FULL <ExternalLink size={10}/>
                         </a>
                         <button 
-                          onClick={() => handleAiSummary(item.title, i)}
-                          disabled={loadingAi[i] || cooldownRemaining[i] > 0}
+                          onClick={() => handleAiSummary(item.title)}
+                          disabled={loadingAi[item.title] || cooldownRemaining[item.title] > 0}
                           className={`text-[10px] px-4 py-2 rounded-full border transition-all flex items-center gap-2 font-bold ${
-                            cooldownRemaining[i] > 0
+                            cooldownRemaining[item.title] > 0
                             ? "bg-white/5 border-white/10 text-gray-500 cursor-not-allowed" 
                             : "bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20 active:scale-95"
                           }`}
                         >
-                          {loadingAi[i] ? "Menganalisa..." : cooldownRemaining[i] > 0 ? `⏳ Wait ${cooldownRemaining[i]}s` : "✨ Ringkas AI"}
+                          {loadingAi[item.title] ? "Menganalisa..." : cooldownRemaining[item.title] > 0 ? `⏳ Wait ${cooldownRemaining[item.title]}s` : "✨ Ringkas AI"}
                         </button>
                       </div>
                     ) : (
                       <div className="text-[11px] text-gray-300 leading-relaxed bg-blue-500/[0.03] p-4 rounded-2xl border border-blue-500/10 shadow-inner animate-in fade-in duration-500">
-                        <span className="font-bold text-blue-400">Deep Analysis: </span>{summary[i]}
+                        <span className="font-bold text-blue-400">Deep Analysis: </span>{summary[item.title]}
                       </div>
                     )}
                   </div>
@@ -273,9 +274,9 @@ export default function App() {
           )}
         </div>
 
-        {/* Sidebar Developer Desktop */}
-        <aside className="lg:col-span-1">
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl hidden lg:block">
+        {/* Sidebar Developer (Tampil di Desktop & Muncul Paling Bawah di HP) */}
+        <aside className="lg:col-span-1 mt-8 lg:mt-0">
+          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-8 rounded-[40px] sticky top-28 shadow-xl">
             <div className="relative w-28 h-28 mx-auto mb-6">
               <div className="absolute inset-0 bg-white/10 rounded-full blur-xl animate-pulse"></div>
               <img src="https://res.cloudinary.com/dwiozm4vz/image/upload/v1772959730/ootglrvfmykn6xsto7rq.png" alt="Avatar" className="relative w-28 h-28 rounded-full border-2 border-white/10 object-cover shadow-2xl" />
@@ -284,7 +285,6 @@ export default function App() {
             <h2 className="text-xl font-black tracking-tight text-center text-white">Rahmat</h2>
             <p className="text-[11px] text-blue-400 font-mono mt-1 text-center font-bold">@R_hmt ofc</p>
             
-            {/* Sosmed Hub */}
             <div className="flex flex-col gap-3 mt-6">
               <div className="flex flex-wrap gap-2 justify-center">
                 <a href="https://github.com/rahmat-369" target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white/5 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-white/10 hover:text-white transition text-gray-400 border border-white/5"><Github size={14}/></a>
@@ -297,7 +297,6 @@ export default function App() {
               </a>
             </div>
 
-            {/* Proyek Lainnya */}
             <div className="mt-8 pt-6 border-t border-white/5 text-left">
               <h3 className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-4 text-center">Sirkuit Proyek</h3>
               <ul className="text-[11px] text-gray-300 space-y-3 px-2">
@@ -312,4 +311,4 @@ export default function App() {
       </div>
     </div>
   );
-      } 
+          }
